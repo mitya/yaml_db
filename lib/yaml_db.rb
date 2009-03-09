@@ -165,12 +165,18 @@ module YamlDb::Load
 	end
 
 	def self.load_records(table, column_names, records)
-		quoted_column_names = column_names.map { |column| ActiveRecord::Base.connection.quote_column_name(column) }.join(',')
+		connection = ActiveRecord::Base.connection
+		quoted_column_names = column_names.map { |column| connection.quote_column_name(column) }.join(',')
 		quoted_table_name = YamlDb::Utils.quote_table(table)
 		records.each do |record|
-			ActiveRecord::Base.connection.execute("INSERT INTO #{quoted_table_name} (#{quoted_column_names}) VALUES (#{record.map { |r| ActiveRecord::Base.connection.quote(r) }.join(',')})")
+			values = []
+			record.each_with_index do |r, i|
+				column = connection.columns(table)[i]
+				values << connection.quote(r, column)
+			end
+			connection.execute("INSERT INTO #{quoted_table_name} (#{quoted_column_names}) VALUES (#{values.join(',')})")
 		end
-	end
+	end	
 
 	def self.reset_pk_sequence!(table_name)
 		if ActiveRecord::Base.connection.respond_to?(:reset_pk_sequence!)
